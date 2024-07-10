@@ -41,7 +41,7 @@
 
 // CONSTRUCTOR
 //------------------------------------------------------------------------------
-Worker::Worker( const AString & args, bool consoleMode, bool periodicRestart, bool preferHostName )
+Worker::Worker( const AString & args, bool consoleMode, bool periodicRestart, bool preferHostName, const AString * baseExe )
     : m_ConsoleMode( consoleMode )
     , m_PeriodicRestart( periodicRestart )
     , m_MainWindow( nullptr )
@@ -61,14 +61,22 @@ Worker::Worker( const AString & args, bool consoleMode, bool periodicRestart, bo
     m_NetworkStartupHelper = FNEW( NetworkStartupHelper );
     m_ConnectionPool = FNEW( Server );
 
+    if ( baseExe != nullptr && !baseExe->IsEmpty() )
+    {
+        m_BaseExeName = *baseExe;
+        m_BaseArgs.Replace( "-subprocess", "" );
+    }
+    else
+    {
     Env::GetExePath( m_BaseExeName );
-    #if defined( __WINDOWS__ )
+#if defined( __WINDOWS__ )
         if ( m_BaseExeName.Replace( ".copy", "" ) != 1 )
         {
             m_BaseExeName.Clear(); // not running from copy, disable restart detection
         }
         m_BaseArgs.Replace( "-subprocess", "" );
-    #endif
+#endif
+    }
 }
 
 // DESTRUCTOR
