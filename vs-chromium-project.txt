@@ -1,0 +1,16 @@
+[SearchableFiles.include]
+*
+
+[SearchableFiles.ignore]
+.git/
+*.exe
+*.ii
+*.ico
+*.idx
+*.fdb
+*.o
+*.png
+*.pack
+Documentation/
+profile.json
+tmp/
