@@ -44,7 +44,12 @@ Client::Client( const Array< AString > & workerList,
     , m_Port( port )
 {
     // allocate space for server states
-    m_ServerList.SetSize( workerList.GetSize() );
+    const size_t nbWorkers = workerList.GetSize();
+    m_ServerList.SetCapacity( nbWorkers );
+    for ( size_t i = 0; i < nbWorkers; ++i )
+    {
+        m_ServerList.EmplaceBack( new ServerState );
+    }
 
     m_Thread.Start( ThreadFuncStatic, "Client", this );
 }
@@ -61,6 +66,14 @@ Client::~Client()
     m_Thread.Join();
 
     ShutdownAllConnections();
+
+    {
+        MutexHolder mh( m_ServerListMutex );
+        for ( ServerState* server : m_ServerList )
+        {
+            delete server;
+        }
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -135,6 +148,40 @@ void Client::ThreadFunc()
 
 // LookForWorkers
 //------------------------------------------------------------------------------
+int Client::AppendWorkers(const Array< AString >& workerList)
+{
+    int appended = 0;
+
+    MutexHolder mh( m_ServerListMutex );
+
+    // candidate to be optimized if needed
+    for ( const AString& workerName : workerList )
+    {
+        // Filter out already existing workers
+        if ( m_WorkerList.Find( workerName ) )
+        {
+            continue;
+        }
+
+        ++appended;
+        m_WorkerList.Append( workerName );
+    }
+
+    if ( m_ServerList.GetSize() != m_WorkerList.GetSize() )
+    {
+        ASSERT( m_WorkerList.GetSize() == ( m_ServerList.GetSize() + static_cast<size_t>( appended ) ) );
+        m_ServerList.SetCapacity( m_ServerList.GetSize() + static_cast<size_t>( appended ) );
+        for ( int i = 0; i < appended; ++i )
+        {
+            m_ServerList.EmplaceBack( new ServerState );
+        }
+    }
+
+    return appended;
+}
+
+// LookForWorkers
+//------------------------------------------------------------------------------
 void Client::LookForWorkers()
 {
     PROFILE_FUNCTION;
@@ -147,7 +194,7 @@ void Client::LookForWorkers()
     size_t numConnections = 0;
     for ( size_t i=0; i<numWorkers; i++ )
     {
-        if ( AtomicLoadRelaxed( &m_ServerList[ i ].m_Connection ) )
+        if ( AtomicLoadRelaxed( &m_ServerList[ i ]->m_Connection ) )
         {
             numConnections++;
         }
@@ -176,43 +223,43 @@ void Client::LookForWorkers()
     {
         const size_t i( ( j + startIndex ) % numWorkers );
 
-        ServerState & ss = m_ServerList[ i ];
-        if ( AtomicLoadRelaxed( &ss.m_Connection ) )
+        ServerState * ss = m_ServerList[ i ];
+        if ( AtomicLoadRelaxed( &ss->m_Connection ) )
         {
             continue;
         }
 
         // ignore deny listed workers
-        if ( ss.m_Denylisted )
+        if ( ss->m_Denylisted )
         {
             continue;
         }
 
         // lock the server state
-        MutexHolder mhSS( ss.m_Mutex );
+        MutexHolder mhSS( ss->m_Mutex );
 
-        ASSERT( ss.m_Jobs.IsEmpty() );
+        ASSERT( ss->m_Jobs.IsEmpty() );
 
-        if ( ss.m_DelayTimer.GetElapsed() < CONNECTION_REATTEMPT_DELAY_TIME )
+        if ( ss->m_DelayTimer.GetElapsed() < CONNECTION_REATTEMPT_DELAY_TIME )
         {
             continue;
         }
 
         DIST_INFO( "Connecting to: %s\n", m_WorkerList[ i ].Get() );
-        const ConnectionInfo * ci = Connect( m_WorkerList[ i ], m_Port, 2000, &ss ); // 2000ms connection timeout
+        const ConnectionInfo * ci = Connect( m_WorkerList[ i ], m_Port, 2000, ss ); // 2000ms connection timeout
         if ( ci == nullptr )
         {
             DIST_INFO( " - connection: %s (FAILED)\n", m_WorkerList[ i ].Get() );
-            ss.m_DelayTimer.Start(); // reset connection attempt delay
+            ss->m_DelayTimer.Start(); // reset connection attempt delay
         }
         else
         {
             DIST_INFO( " - connection: %s (OK)\n", m_WorkerList[ i ].Get() );
             const uint32_t numJobsAvailable = (uint32_t)JobQueue::Get().GetNumDistributableJobsAvailable();
 
-            ss.m_RemoteName = m_WorkerList[ i ];
-            AtomicStoreRelaxed( &ss.m_Connection, ci ); // success!
-            ss.m_NumJobsAvailable = numJobsAvailable;
+            ss->m_RemoteName = m_WorkerList[ i ];
+            AtomicStoreRelaxed( &ss->m_Connection, ci ); // success!
+            ss->m_NumJobsAvailable = numJobsAvailable;
 
             // send connection msg
             const Protocol::MsgConnection msg( numJobsAvailable );
@@ -240,18 +287,18 @@ void Client::CommunicateJobAvailability()
 
     // Update each server so it knows how many jobs we have available now
     MutexHolder mh( m_ServerListMutex );
-    for ( ServerState & ss : m_ServerList )
+    for ( ServerState * ss : m_ServerList )
     {
         // Do we have a connection?
-        MutexHolder ssMH( ss.m_Mutex );
-        const ConnectionInfo * connection = AtomicLoadRelaxed( &ss.m_Connection );
+        MutexHolder ssMH( ss->m_Mutex );
+        const ConnectionInfo * connection = AtomicLoadRelaxed( &ss->m_Connection );
         if ( connection == nullptr )
         {
             continue; // no connection
         }
 
         // Update the worker periodically (but only if the state has changed)
-        bool sendAvailabilityToWorker = timerExpired && ( ss.m_NumJobsAvailable != numJobsAvailable );
+        bool sendAvailabilityToWorker = timerExpired && ( ss->m_NumJobsAvailable != numJobsAvailable );
 
         // Update worker when jobs become available if there were no jobs available,
         // even if the periodic update timer has not expired. This creates more traffic,
@@ -262,7 +309,7 @@ void Client::CommunicateJobAvailability()
         //       and jobs then becoming available)
         //
         // In both cases, we avoid upto CLIENT_STATUS_UPDATE_FREQUENCY_SECONDS of latency
-        if ( numJobsAvailable && ( ss.m_NumJobsAvailable == 0 ) )
+        if ( numJobsAvailable && ( ss->m_NumJobsAvailable == 0 ) )
         {
             sendAvailabilityToWorker = true;
         }
@@ -271,7 +318,7 @@ void Client::CommunicateJobAvailability()
         {
             PROFILE_SECTION( "UpdateJobAvailability" );
             SendMessageInternal( connection, msg );
-            ss.m_NumJobsAvailable = numJobsAvailable;
+            ss->m_NumJobsAvailable = numJobsAvailable;
         }
     }
 
@@ -626,8 +673,10 @@ void Client::ProcessJobResultCommon( const ConnectionInfo * connection, bool isC
         ss->m_Denylisted = true;
 
         // -distverbose message
-        const size_t workerIndex = m_ServerList.GetIndexOf( ss );
-        const AString & workerName = m_WorkerList[ workerIndex ];
+        ServerState * const * const found = m_ServerList.Find( ss );
+        ASSERT( found );
+
+        const AString & workerName = m_WorkerList[ m_ServerList.GetIndexOf( found ) ];
         DIST_INFO( "Remote System Failure!\n"
                     " - Deny listed Worker: %s\n"
                     " - Node              : %s\n"
@@ -662,7 +711,9 @@ void Client::ProcessJobResultCommon( const ConnectionInfo * connection, bool isC
         }
 
         // Record information about worker
-        const uint32_t workerId = static_cast<uint32_t>( m_ServerList.GetIndexOf( ss ) );
+        ServerState * const * const found = m_ServerList.Find( ss );
+        ASSERT( found );
+        const uint32_t workerId = static_cast<uint32_t>( m_ServerList.GetIndexOf( found ) );
         const int64_t start = receivedResultEndTime - (int64_t)( ( (double)buildTime / 1000 ) * (double)Timer::GetFrequency() );
         BuildProfiler::Get().RecordRemote( workerId,
                                            ss->m_RemoteName,

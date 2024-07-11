@@ -141,6 +141,7 @@ protected:
     ICache * m_Cache;
 
     Timer m_Timer;
+    float m_LastWorkerLookupTime;
     float m_LastProgressOutputTime;
     float m_LastProgressCalcTime;
     float m_SmoothedProgressCurrent;

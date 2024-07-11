@@ -25,7 +25,7 @@ WorkerBrokerageClient::~WorkerBrokerageClient() = default;
 
 // FindWorkers
 //------------------------------------------------------------------------------
-void WorkerBrokerageClient::FindWorkers( Array< AString > & outWorkerList )
+void WorkerBrokerageClient::FindWorkers( Array< AString > & outWorkerList, bool log )
 {
     PROFILE_FUNCTION;
 
@@ -56,10 +56,17 @@ void WorkerBrokerageClient::FindWorkers( Array< AString > & outWorkerList )
     for( AString& root : m_BrokerageRoots )
     {
         const size_t filesBeforeSearch = results.GetSize();
-        if ( !FileIO::GetFiles( root,
-                                AStackString<>( "*" ),
-                                false,
-                                &results ) )
+        const bool found = FileIO::GetFiles( root,
+            AStackString<>( "*" ),
+            false,
+            &results );
+
+        if ( !log )
+        {
+            continue;
+        }
+
+        if ( !found )
         {
             FLOG_WARN( "No workers found in '%s'", root.Get() );
         }
