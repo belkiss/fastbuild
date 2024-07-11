@@ -384,6 +384,8 @@ void FBuild::SaveDependencyGraph( MemoryStream & stream, const char* nodeGraphDB
     // create worker threads
     m_JobQueue = FNEW( JobQueue( m_Options.m_NumWorkerThreads, m_ThreadPool ) );
 
+    Array< AString > staticWorkers;
+
     // create the connection management system if needed
     // (must be after JobQueue is created)
     if ( m_Options.m_AllowDistributed )
@@ -391,26 +393,27 @@ void FBuild::SaveDependencyGraph( MemoryStream & stream, const char* nodeGraphDB
         const SettingsNode * settings = m_DependencyGraph->GetSettings();
 
         // Worker list from Settings takes priority
-        Array< AString > workers( settings->GetWorkerList() );
-        if ( workers.IsEmpty() )
-        {
-            // check for workers through brokerage or environment
-            m_WorkerBrokerage.FindWorkers( workers );
-        }
+        staticWorkers = settings->GetWorkerList();
 
-        if ( workers.IsEmpty() )
+        // check for workers through brokerage or environment
+        Array< AString > workers( staticWorkers );
+        m_WorkerBrokerage.FindWorkers( workers, true );
+
+        if ( workers.IsEmpty() && m_WorkerBrokerage.GetBrokerageRootPaths().IsEmpty() )
         {
-            FLOG_WARN( "No workers available - Distributed compilation disabled" );
+            FLOG_WARN( "No workers available and brokerage path empty / not set - Distributed compilation disabled" );
             m_Options.m_AllowDistributed = false;
         }
-        else
+        else if ( !staticWorkers.IsEmpty() )
         {
-            OUTPUT( "Distributed Compilation : %u Workers in pool '%s'\n", (uint32_t)workers.GetSize(), m_WorkerBrokerage.GetBrokerageRootPaths().Get() );
-            m_Client = FNEW( Client( workers, m_Options.m_DistributionPort, settings->GetWorkerConnectionLimit(), m_Options.m_DistVerbose ) );
+            OUTPUT( "Distributed Compilation: %u Static worker%s\n", (uint32_t)staticWorkers.GetSize(), staticWorkers.GetSize() == 1 ? "" : "s" );
         }
+
+        m_Client = FNEW( Client( workers, m_Options.m_DistributionPort, settings->GetWorkerConnectionLimit(), m_Options.m_DistVerbose ) );
     }
 
     m_Timer.Start();
+    m_LastWorkerLookupTime = 0.0f;
     m_LastProgressOutputTime = 0.0f;
     m_LastProgressCalcTime = 0.0f;
     m_SmoothedProgressCurrent = 0.0f;
@@ -440,6 +443,28 @@ void FBuild::SaveDependencyGraph( MemoryStream & stream, const char* nodeGraphDB
 
             if ( !stopping )
             {
+                constexpr float REFRESH_WORKER_FREQUENCY_SECONDS( 30.0f );
+                const float timeNow = m_Timer.GetElapsed();
+                if ( ( timeNow - m_LastWorkerLookupTime ) >= REFRESH_WORKER_FREQUENCY_SECONDS && m_Client != nullptr )
+                {
+                    // check for workers through brokerage or environment
+                    Array< AString > workers( staticWorkers );
+                    m_WorkerBrokerage.FindWorkers( workers, false );
+                    m_LastWorkerLookupTime = m_Timer.GetElapsed();
+
+                    {
+                        MutexHolder mh( m_ClientLifetimeMutex );
+                        if ( m_Client != nullptr )
+                        {
+                            const int nbAppended = m_Client->AppendWorkers( workers );
+                            if ( nbAppended > 0 )
+                            {
+                                OUTPUT( "Distributed Compilation: %d new worker%s in '%s'\n", nbAppended, nbAppended == 1 ? "" : "s", m_WorkerBrokerage.GetBrokerageRootPaths().Get() );
+                            }
+                        }
+                    }
+                }
+
                 // do a sweep of the graph to create more jobs
                 m_DependencyGraph->DoBuildPass( nodeToBuild );
             }

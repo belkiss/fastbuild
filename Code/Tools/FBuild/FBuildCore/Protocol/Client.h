@@ -41,6 +41,13 @@ public:
             bool detailedLogging );
     virtual ~Client() override;
 
+    /// <summary>
+    /// Append workers to the list of possible ones, if not already existing
+    /// </summary>
+    /// <param name="workerList">The list of worker names to add</param>
+    /// <returns>The nb of workers that were appended</returns>
+    int AppendWorkers( const Array< AString >& workerList );
+
 private:
     virtual void OnDisconnected( const ConnectionInfo * connection ) override;
     virtual void OnReceive( const ConnectionInfo * connection, void * data, uint32_t size, bool & keepMemory ) override;
@@ -94,7 +101,7 @@ private:
         bool                    m_Denylisted;
     };
     Mutex                   m_ServerListMutex;
-    Array< ServerState >    m_ServerList;
+    Array< ServerState * >  m_ServerList;
     uint32_t                m_WorkerConnectionLimit;
     uint16_t                m_Port;
 };
