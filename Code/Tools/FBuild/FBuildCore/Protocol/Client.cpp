@@ -771,6 +771,12 @@ void Client::ProcessJobResultCommon( const ConnectionInfo * connection, bool isC
 
     if ( result == true )
     {
+        if ( ss->m_Denylisted )
+        {
+        	// if worker was previously deny listed but it then succeeded, activate it back
+        	ss->m_Denylisted = false;
+        }
+
         // built ok - serialize to disc
 
         ObjectNode * objectNode = node->CastTo< ObjectNode >();
