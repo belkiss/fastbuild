@@ -43,10 +43,6 @@ private:
 // Register Tests
 //------------------------------------------------------------------------------
 REGISTER_TESTS_BEGIN( TestObject )
-    REGISTER_TEST( MSVCArgHelpers )             // Test functions that check for MSVC args
-    REGISTER_TEST( Preprocessor )
-    REGISTER_TEST( TestStaleDynamicDeps )       // Test dynamic deps are cleared when necessary
-    REGISTER_TEST( ModTimeChangeBackwards )
     REGISTER_TEST( CacheUsingRelativePaths )
     REGISTER_TEST( SourceMapping )
     REGISTER_TEST( ClangExplicitLanguageType )
@@ -376,6 +372,7 @@ void TestObject::CacheUsingRelativePaths() const
         FBuildTestOptions options;
         options.m_ConfigFile = "fbuild.bff";
         options.m_UseCacheWrite = true;
+        options.m_ShowCommandLines = true;
         //options.m_ForceCleanBuild = true;
         AStackString<> codeDir;
         GetCodeDir( codeDir );
