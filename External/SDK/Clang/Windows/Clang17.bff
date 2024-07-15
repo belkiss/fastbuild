@@ -115,6 +115,7 @@ Compiler( 'Compiler-Clang17-NonCL' )
                                     + ' -Wno-missing-variable-declarations' // no previous extern declaration for non-static variable '%s'
                                     + ' -Wno-gnu-line-marker'           // Clang complains about directives its own preprocessor generated
                                     + ' -Wno-switch-enum'               // Allow the use of "default" labels (we keep -Wswitch to ensure all cases are handled)
+                                    + ' -Wno-switch-default'            // Allow not having the "default" label in some cases
 
                                     // Warnings that fire but might be best to be fixed
                                     + ' -Wno-cast-function-type-strict' // converts to incompatible function type
