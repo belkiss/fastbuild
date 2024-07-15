@@ -42,7 +42,6 @@ jobs:
       - name: Configure fbuild.bff for vs2022
         if: runner.os == 'Windows' && matrix.os == 'windows-2022'
         run: |
-          find 'C:\Program Files\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise'
           'C:\Program Files\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise\VC\Tools\LLVM\x64\bin\clang.exe' --version
           # Inject "#define CI_BUILD" into root configs to activate CI logic.
           sed -i -e "1i\\
