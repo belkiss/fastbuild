@@ -16,6 +16,9 @@ jobs:
           - cfg: Build & Tests
             vs: 2022
             os: windows-2022
+          - cfg: Build & Tests
+            vs: 2019
+            os: windows-2019
 
     name: Windows (${{ matrix.cfg }}, VS ${{ matrix.vs }})
     runs-on: ${{ matrix.os }}
@@ -26,7 +29,7 @@ jobs:
       - uses: ./.github/actions/DownloadFBuild
 
       - name: Configure fbuild.bff for vs2017/vs2019
-        if: runner.os == 'Windows' && matrix.os != 'windows-2022'
+        if: matrix.os != 'windows-2022'
         run: |
           'C:\Program Files (x86)\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise\VC\Tools\LLVM\x64\bin\clang.exe' --version
           # Inject "#define CI_BUILD" into root configs to activate CI logic.
@@ -40,7 +43,7 @@ jobs:
           " ../External/SDK/VisualStudio/VisualStudio.bff
 
       - name: Configure fbuild.bff for vs2022
-        if: runner.os == 'Windows' && matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022'
         run: |
           'C:\Program Files\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise\VC\Tools\LLVM\x64\bin\clang.exe' --version
           # Inject "#define CI_BUILD" into root configs to activate CI logic.
