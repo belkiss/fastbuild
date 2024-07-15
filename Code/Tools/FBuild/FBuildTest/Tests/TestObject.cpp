@@ -18,6 +18,7 @@
 #include "Core/FileIO/FileStream.h"
 #include "Core/FileIO/PathUtils.h"
 #include "Core/Process/Thread.h"
+#include "Core/Tracing/Tracing.h"
 #include "Core/Strings/AStackString.h"
 
 // TestObject
@@ -403,6 +404,7 @@ void TestObject::CacheUsingRelativePaths() const
         }
 
         // Check __FILE__ paths are relative
+        Tracing::OutputFormat("\n-------- PEC '%s' --------\n", buffer.Get());
         TEST_ASSERT( buffer.Find( "FILE_MACRO_START_1(./Subdir/Header.h)FILE_MACRO_END_1" ) );
         TEST_ASSERT( buffer.Find( "FILE_MACRO_START_2(File.cpp)FILE_MACRO_END_2" ) );
     }
