@@ -51,7 +51,7 @@
 #endif
 #if __WINDOWS__
     #if CI_BUILD
-        #define USING_CLANG_11
+        #define USING_CLANG_17
     #endif
     #if USING_CLANG_8
         #include "Windows/Clang8.bff"
