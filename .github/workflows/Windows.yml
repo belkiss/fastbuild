@@ -34,9 +34,24 @@ jobs:
 
       - uses: ./.github/actions/DownloadFBuild
 
-      - name: Configure fbuild.bff
+      - name: Configure fbuild.bff for vs2017/vs2019
+        if: runner.os == 'Windows' && matrix.os != 'windows-2022'
         run: |
           'C:\Program Files (x86)\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise\VC\Tools\LLVM\x64\bin\clang.exe' --version
+          # Inject "#define CI_BUILD" into root configs to activate CI logic.
+          sed -i -e "1i\\
+          #define CI_BUILD
+          " fbuild.bff Tools/FBuild/FBuildTest/Data/testcommon.bff
+          # Comment all "#define USING_VS" lines and then uncomment the one we want.
+          sed -i -e "
+          /#define USING_VS/ s:^[^#]*://:
+          /#define USING_VS${{ matrix.vs }}/ s:^[^#]*::
+          " ../External/SDK/VisualStudio/VisualStudio.bff
+
+      - name: Configure fbuild.bff for vs2022
+        if: runner.os == 'Windows' && matrix.os == 'windows-2022'
+        run: |
+          'C:\Program Files\Microsoft Visual Studio\${{ matrix.vs }}\Enterprise\VC\Tools\LLVM\x64\bin\clang.exe' --version
           # Inject "#define CI_BUILD" into root configs to activate CI logic.
           sed -i -e "1i\\
           #define CI_BUILD
