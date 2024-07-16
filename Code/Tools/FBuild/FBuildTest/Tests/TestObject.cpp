@@ -403,7 +403,6 @@ void TestObject::CacheUsingRelativePaths() const
         // Check __FILE__ paths are relative
         Tracing::OutputFormat("\n-------- PEC '%s' --------\n", buffer.Get());
         TEST_ASSERT( buffer.Find( "FILE_MACRO_START_1(./Subdir/Header.h)FILE_MACRO_END_1" ) );
-        TEST_ASSERT( !buffer.Find( "FILE_MACRO_START_1(./Subdir/Header.h)FILE_MACRO_END_1" ) );
         TEST_ASSERT( buffer.Find( "FILE_MACRO_START_2(File.cpp)FILE_MACRO_END_2" ) );
     }
 
