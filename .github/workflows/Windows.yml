@@ -8,7 +8,11 @@ defaults:
     working-directory: Code
 
 jobs:
-  windows-ci:
+  windows-cicd:
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -27,9 +31,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout the repo
+        uses: actions/checkout@v4
 
-      - uses: ./.github/actions/DownloadFBuild
+      - name: Download prebuilt FBuild binary
+        uses: ./.github/actions/DownloadFBuild
 
       - name: Configure fbuild.bff for vs2017/vs2019
         if: matrix.os != 'windows-2022'
@@ -62,6 +68,23 @@ jobs:
       - name: Build
         if: ${{ startsWith(matrix.cfg, 'Build') }}
         run: ${FBUILD_PATH} -nostoponerror -summary All-x64{,Clang}-{Debug,Profile,Release}
+
+      - name: Attest binaries provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            tmp/x64-Release/Tools/FBuild/FBuild/FBuild.*
+            tmp/x64-Release/Tools/FBuild/FBuildWorker/FBuildWorker.*
+
+      - name: Upload FASTBuild x64-Release binaries
+        if: matrix.os == 'windows-2022'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'FASTBuild-Windows-x64-${{ github.sha }}'
+          if-no-files-found: error
+          path: |
+            tmp/x64-Release/Tools/FBuild/FBuild/FBuild.*
+            tmp/x64-Release/Tools/FBuild/FBuildWorker/FBuildWorker.*
 
       - name: Tests
         # -j1 on CI nodes avoids timeouts (CI nodes have only 2 cores)
