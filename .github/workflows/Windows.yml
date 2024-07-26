@@ -70,6 +70,7 @@ jobs:
         run: ${FBUILD_PATH} -nostoponerror -summary All-x64{,Clang}-{Debug,Profile,Release}
 
       - name: Attest binaries provenance
+        if: matrix.os == 'windows-2022' && matrix.cfg == 'Build & Tests'
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
@@ -77,7 +78,7 @@ jobs:
             tmp/x64-Release/Tools/FBuild/FBuildWorker/FBuildWorker.*
 
       - name: Upload FASTBuild x64-Release binaries
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022' && matrix.cfg == 'Build & Tests'
         uses: actions/upload-artifact@v4
         with:
           name: 'FASTBuild-Windows-x64-${{ github.sha }}'
